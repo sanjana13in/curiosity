@@ -9,19 +9,22 @@ let reqNo = Math.floor(Math.random() * 3) + 1;
 let projectsPerPage = 2;
 let USERNAMES;
 
-
+// Function to check if all users have been processed
 const allUsersChecked = function allUsersChecked() {
     return usersCurrentCall === USERNAMES.length;
 };
 
+// Function to determine if more data is needed
 const moreDataNeeded = function moreDataNeeded() {
-    return ((allUsersChecked()) && (projectsCurrentCall < MIN_PROJECTS_PER_CALL));
+    return (allUsersChecked() && projectsCurrentCall < MIN_PROJECTS_PER_CALL);
 };
 
+// Function to format GitHub usernames into links
 const userFormatter = function userFormatter(username) {
-    return `<a href='https://github.com/${username}?tab=stars'>${username}</a>`;
+    return `<a href='https://github.com/${username}?tab=stars' target='_blank'>${username}</a>`;
 };
 
+// Function to format numbers with 'k' for thousands
 const nFormatter = function nFormatter(num) {
     if (num <= 999) {
         return `${num}`;
@@ -31,6 +34,7 @@ const nFormatter = function nFormatter(num) {
     return `${num}`;
 };
 
+// Function to collect and display data from API response
 const dataCollector = function dataCollector(response, username) {
     usersCurrentCall += 1;
     const filterFunction = languageFilter(languageSelected);
@@ -51,7 +55,7 @@ const dataCollector = function dataCollector(response, username) {
         }
     });
     if (moreDataNeeded()) {
-        getData(localStorage.getItem('accessToken'));
+        getData();
     } else if (allUsersChecked()) {
         projectsCurrentCall = 0;
         callInProgress = false;
@@ -59,16 +63,18 @@ const dataCollector = function dataCollector(response, username) {
     }
 };
 
+// Function to fetch data from GitHub API
 const getData = function getData() {
     document.getElementById('searching').innerHTML = '<br/>Fetching projects...';
     usersCurrentCall = 0;
     callInProgress = true;
     reqNo += 1;
     USERNAMES.forEach((username) => {
-        const url = `https://api.github.com/users/${username}/starred?per_page=${projectsPerPage}&access_token=${accessToken}&page=${reqNo}`;
+        const url = `https://api.github.com/users/${username}/starred?per_page=${projectsPerPage}&page=${reqNo}`;
         axios({
             url,
             method: 'get',
+            headers: { 'Authorization': `token ${accessToken}` }, // Updated: Use Authorization header
             responseType: 'json',
         }).then((response) => {
             dataCollector(response, username);
@@ -78,6 +84,7 @@ const getData = function getData() {
     });
 };
 
+// Initialize the application
 if (window.localStorage) {
     if (!localStorage.getItem('usernames')) {
         localStorage.setItem('usernames', JSON.stringify(DEFAULTUSERNAMES));
@@ -86,34 +93,33 @@ if (window.localStorage) {
 
     if (!localStorage.getItem('accessToken')) {
         swal({
-            title: 'Submit Github Token',
-            html: "Curiosity requires a Github Token to access Github API. Your token will be saved in LocalStorage. So don't worry. Get new token <a target='_blank' href='https://github.com/settings/tokens/new?description=Curiosity'>here</a>.",
+            title: 'Submit GitHub Token',
+            html: "Curiosity requires a GitHub Token to access the GitHub API. Your token will be saved in LocalStorage. Don't worry, it's safe. Get a new token <a target='_blank' href='https://github.com/settings/tokens/new?description=Curiosity'>here</a>.",
             input: 'text',
             showCancelButton: true,
             confirmButtonText: 'Submit',
-            showLoaderOnConfirm: false,
+            showLoaderOnConfirm: true, // Updated: Show loader during verification
             preConfirm(token) {
                 return new Promise((resolve, reject) => {
-                    setTimeout(() => {
-                        if (token === '') {
-                            reject(new Error('Enter Valid Token'));
-                        } else {
-                            const url = `https://api.github.com/?access_token=${token}`;
-                            axios({
-                                url,
-                                method: 'get',
-                                responseType: 'json',
-                            }).then(() => {
-                                localStorage.setItem('accessToken', token);
-                                resolve();
-                            }).catch(() => reject(new Error('Error: invalid token')));
-                        }
-                    }, 1000);
+                    if (token.trim() === '') {
+                        reject(new Error('Enter a valid token'));
+                    } else {
+                        const url = `https://api.github.com/user`; // Updated: Use authenticated user endpoint
+                        axios({
+                            url,
+                            method: 'get',
+                            headers: { 'Authorization': `token ${token}` }, // Updated: Use Authorization header
+                            responseType: 'json',
+                        }).then(() => {
+                            localStorage.setItem('accessToken', token);
+                            resolve();
+                        }).catch(() => reject(new Error('Error: Invalid token')));
+                    }
                 });
             },
             allowOutsideClick: false,
-        }).then((token) => {
-            accessToken = token;
+        }).then(() => {
+            accessToken = localStorage.getItem('accessToken');
             getData();
             renderLanguageSelector();
             renderUsernames();
@@ -121,13 +127,19 @@ if (window.localStorage) {
                 type: 'success',
                 title: 'Thank You',
             });
+        }).catch((error) => {
+            swal({
+                type: 'error',
+                title: 'Token Verification Failed',
+                text: error.message,
+            });
         });
     }
 } else {
     alert('Sorry! LocalStorage is not available');
 }
 
-accessToken = localStorage.getItem('accessToken');
+let accessToken = localStorage.getItem('accessToken'); // Moved declaration above usage
 
 if (accessToken) {
     getData();
@@ -135,6 +147,7 @@ if (accessToken) {
     renderUsernames();
 }
 
+// Infinite scroll options
 const OPTIONS = {
     distance: 1,
     callback(done) {
@@ -145,4 +158,5 @@ const OPTIONS = {
     },
 };
 
+// Initialize infinite scroll
 infiniteScroll(OPTIONS);
